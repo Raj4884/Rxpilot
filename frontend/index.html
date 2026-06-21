@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RxPilot — AI Pharmacy Bill Extraction</title>
+    <meta name="description" content="RxPilot: Multi-agent AI system for pharmacy operations. Extract structured data from photographed bills with Claude Vision and LangGraph orchestration.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- ── Header ── -->
+    <header class="app-header" id="app-header">
+        <div class="header-left">
+            <div class="logo">
+                <div class="logo-icon">
+                    <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                        <rect x="2" y="10" width="24" height="8" rx="2" fill="url(#pill-gradient)" opacity="0.9"/>
+                        <rect x="10" y="2" width="8" height="24" rx="2" fill="url(#pill-gradient)" opacity="0.7"/>
+                        <defs>
+                            <linearGradient id="pill-gradient" x1="0" y1="0" x2="28" y2="28">
+                                <stop offset="0%" stop-color="#06d6a0"/>
+                                <stop offset="100%" stop-color="#118ab2"/>
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                </div>
+                <span class="logo-text">RxPilot</span>
+                <span class="logo-badge">Phase 1</span>
+            </div>
+        </div>
+        <div class="header-right">
+            <a href="/docs" target="_blank" class="header-link" id="api-docs-link">API Docs</a>
+            <div class="status-indicator" id="status-indicator">
+                <span class="status-dot"></span>
+                <span class="status-text">Checking...</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- ── Main Content ── -->
+    <main class="app-main">
+        <div class="content-grid">
+            <!-- Left Column: Upload + Preview -->
+            <section class="upload-section">
+                <!-- Upload Zone -->
+                <div class="glass-card upload-card" id="upload-card">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <span class="card-icon">📤</span>
+                            Upload Bill
+                        </h2>
+                        <p class="card-subtitle">Drop a pharmacy bill image to extract structured data</p>
+                    </div>
+
+                    <div class="drop-zone" id="drop-zone">
+                        <div class="drop-zone-content" id="drop-zone-content">
+                            <div class="drop-icon">
+                                <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+                                    <path d="M24 4L24 32M24 4L16 12M24 4L32 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                    <path d="M8 28V38C8 40.2091 9.79086 42 12 42H36C38.2091 42 40 40.2091 40 38V28" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
+                            </div>
+                            <p class="drop-text">Drag & drop your bill image here</p>
+                            <p class="drop-hint">or click to browse — JPG, PNG, WebP up to 10MB</p>
+                            <button class="btn btn-primary" id="browse-btn">
+                                <span>Choose File</span>
+                            </button>
+                        </div>
+                        <input type="file" id="file-input" accept=".jpg,.jpeg,.png,.gif,.webp" hidden>
+                    </div>
+
+                    <!-- Image Preview -->
+                    <div class="image-preview hidden" id="image-preview">
+                        <div class="preview-header">
+                            <span class="preview-filename" id="preview-filename"></span>
+                            <button class="btn btn-ghost btn-sm" id="clear-btn" title="Clear">✕</button>
+                        </div>
+                        <img id="preview-image" alt="Bill preview">
+                    </div>
+
+                    <!-- Extract Button -->
+                    <button class="btn btn-accent btn-lg hidden" id="extract-btn">
+                        <span class="btn-icon">🧠</span>
+                        <span>Extract with Claude Vision</span>
+                    </button>
+                </div>
+
+                <!-- Processing State -->
+                <div class="glass-card processing-card hidden" id="processing-card">
+                    <div class="processing-animation">
+                        <div class="pulse-ring"></div>
+                        <div class="pulse-ring delay-1"></div>
+                        <div class="pulse-ring delay-2"></div>
+                        <div class="processing-icon">🔬</div>
+                    </div>
+                    <h3 class="processing-title">Analyzing Bill...</h3>
+                    <p class="processing-subtitle">Claude Vision is extracting structured data from your bill</p>
+                    <div class="pipeline-steps">
+                        <div class="step active" id="step-upload">
+                            <span class="step-icon">✓</span>
+                            <span>Image uploaded</span>
+                        </div>
+                        <div class="step active" id="step-extract">
+                            <span class="step-icon spinner-sm"></span>
+                            <span>Running extraction agent</span>
+                        </div>
+                        <div class="step" id="step-validate">
+                            <span class="step-icon">○</span>
+                            <span>Validating output</span>
+                        </div>
+                        <div class="step" id="step-store">
+                            <span class="step-icon">○</span>
+                            <span>Storing results</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Column: Results -->
+            <section class="results-section">
+                <!-- Results Card -->
+                <div class="glass-card results-card hidden" id="results-card">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <span class="card-icon">📋</span>
+                            Extraction Results
+                        </h2>
+                        <div class="result-meta" id="result-meta"></div>
+                    </div>
+                    <div class="results-body" id="results-body"></div>
+                </div>
+
+                <!-- Error Card -->
+                <div class="glass-card error-card hidden" id="error-card">
+                    <div class="error-icon">❌</div>
+                    <h3 class="error-title">Extraction Failed</h3>
+                    <p class="error-message" id="error-message"></p>
+                    <button class="btn btn-primary" id="retry-btn">Try Again</button>
+                </div>
+
+                <!-- Welcome State -->
+                <div class="glass-card welcome-card" id="welcome-card">
+                    <div class="welcome-icon">💊</div>
+                    <h2 class="welcome-title">Welcome to RxPilot</h2>
+                    <p class="welcome-text">
+                        Upload a pharmacy bill image to extract medicine names, batch numbers,
+                        expiry dates, quantities, prices, and more — powered by Claude Vision
+                        and LangGraph orchestration.
+                    </p>
+                    <div class="feature-tags">
+                        <span class="tag">🧠 Claude Vision</span>
+                        <span class="tag">🔗 LangGraph</span>
+                        <span class="tag">🐘 PostgreSQL</span>
+                        <span class="tag">📊 Langfuse Tracing</span>
+                        <span class="tag">🇮🇳 Multi-language</span>
+                    </div>
+                    <div class="disclaimer">
+                        <strong>⚠️ Portfolio Project</strong> — This is a demonstration system,
+                        not for real clinical use. Drug interaction data is research-grade only.
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Recent Bills -->
+        <section class="history-section">
+            <div class="glass-card history-card">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <span class="card-icon">🕐</span>
+                        Recent Extractions
+                    </h2>
+                    <button class="btn btn-ghost btn-sm" id="refresh-bills-btn" title="Refresh">
+                        ↻ Refresh
+                    </button>
+                </div>
+                <div class="history-body" id="history-body">
+                    <p class="empty-text">No bills processed yet. Upload one above to get started!</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- ── Footer ── -->
+    <footer class="app-footer">
+        <p>RxPilot v0.1.0 · Portfolio Project · Not for clinical use</p>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>

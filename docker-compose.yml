@@ -1,0 +1,84 @@
+services:
+  # ── Postgres + pgvector ──
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-rxpilot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rxpilot_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-rxpilot}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rxpilot"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ── Langfuse (self-hosted observability) ──
+  langfuse-server:
+    image: langfuse/langfuse:2
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-rxpilot}:${POSTGRES_PASSWORD:-rxpilot_dev}@postgres:5432/${POSTGRES_DB:-rxpilot}
+      NEXTAUTH_SECRET: rxpilot-langfuse-secret
+      NEXTAUTH_URL: http://localhost:3001
+      SALT: rxpilot-salt-value
+      LANGFUSE_INIT_ORG_ID: ${LANGFUSE_INIT_ORG_ID:-rxpilot}
+      LANGFUSE_INIT_ORG_NAME: ${LANGFUSE_INIT_ORG_NAME:-RxPilot}
+      LANGFUSE_INIT_PROJECT_ID: ${LANGFUSE_INIT_PROJECT_ID:-rxpilot-main}
+      LANGFUSE_INIT_PROJECT_NAME: ${LANGFUSE_INIT_PROJECT_NAME:-RxPilot Main}
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_INIT_PROJECT_PUBLIC_KEY:-pk-lf-rxpilot-dev}
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_INIT_PROJECT_SECRET_KEY:-sk-lf-rxpilot-dev}
+      LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_INIT_USER_EMAIL:-admin@rxpilot.dev}
+      LANGFUSE_INIT_USER_NAME: ${LANGFUSE_INIT_USER_NAME:-Admin}
+      LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_INIT_USER_PASSWORD:-rxpilot-admin}
+    ports:
+      - "3001:3000"
+    restart: unless-stopped
+
+  # ── FastAPI Backend ──
+  backend:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+      langfuse-server:
+        condition: service_started
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-rxpilot}:${POSTGRES_PASSWORD:-rxpilot_dev}@postgres:5432/${POSTGRES_DB:-rxpilot}
+      DATABASE_URL_SYNC: postgresql://${POSTGRES_USER:-rxpilot}:${POSTGRES_PASSWORD:-rxpilot_dev}@postgres:5432/${POSTGRES_DB:-rxpilot}
+      LANGFUSE_HOST: http://langfuse-server:3000
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_INIT_PROJECT_PUBLIC_KEY:-pk-lf-rxpilot-dev}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_INIT_PROJECT_SECRET_KEY:-sk-lf-rxpilot-dev}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./uploads:/app/uploads
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ── Frontend (static nginx) ──
+  frontend:
+    image: nginx:alpine
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro
+      - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    restart: unless-stopped
+
+volumes:
+  pgdata:
