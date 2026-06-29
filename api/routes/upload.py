@@ -42,12 +42,28 @@ class ExtractedItemResponse(BaseModel):
     currency: str = "INR"
 
 
+class ValidationWarning(BaseModel):
+    """A validation warning for an extracted item."""
+    flag: str
+    message: str
+
+
+class SafetyAlert(BaseModel):
+    """A drug interaction safety alert."""
+    drug_pair: list[str]
+    severity: str
+    description: str
+    source: str
+
+
 class UploadResponse(BaseModel):
     """Response from the bill upload endpoint."""
     bill_id: str
     status: str
     items: list[ExtractedItemResponse] = Field(default_factory=list)
     items_count: int = 0
+    validation_warnings: list[ValidationWarning] = Field(default_factory=list)
+    safety_alerts: list[SafetyAlert] = Field(default_factory=list)
     trace_id: str
     processing_time_ms: float = 0.0
     estimated_cost_usd: float = 0.0
@@ -139,6 +155,35 @@ async def upload_bill(file: UploadFile = File(...)):
                 extracted_items.append(ExtractedItemResponse(**item))
                 items_data.append(item)
 
+        # Parse validation warnings
+        validation_warnings = []
+        for flag in result.get("validation_flags", []):
+            # Flags are in format "type:detail"
+            parts = flag.split(":", 1)
+            flag_type = parts[0]
+            detail = parts[1] if len(parts) > 1 else ""
+            message_map = {
+                "duplicate_batch": f"Duplicate batch number '{detail}' found in previous bills",
+                "expired": f"Medicine '{detail}' has expired",
+                "price_anomaly": f"Price for '{detail}' deviates significantly from historical average",
+                "date_inconsistency": f"Expiry date is before manufacture date for '{detail}'",
+                "missing_fields": f"Missing batch number and expiry date for '{detail}'",
+            }
+            validation_warnings.append(ValidationWarning(
+                flag=flag,
+                message=message_map.get(flag_type, f"Validation issue: {flag}"),
+            ))
+
+        # Parse safety alerts
+        safety_alerts = []
+        for sf in result.get("safety_flags", []):
+            safety_alerts.append(SafetyAlert(
+                drug_pair=list(sf.get("drug_pair", [])),
+                severity=sf.get("severity", "moderate"),
+                description=sf.get("description", "Drug interaction detected"),
+                source=sf.get("source", "RxPilot corpus"),
+            ))
+
         # Store in database
         try:
             bill_id = insert_bill(
@@ -162,6 +207,8 @@ async def upload_bill(file: UploadFile = File(...)):
             status=status,
             items=extracted_items,
             items_count=len(extracted_items),
+            validation_warnings=validation_warnings,
+            safety_alerts=safety_alerts,
             trace_id=trace_id,
             processing_time_ms=round(result.get("processing_time_ms", elapsed_ms), 2),
             estimated_cost_usd=round(result.get("estimated_cost_usd", 0.0), 6),

@@ -2,8 +2,11 @@
 RxPilot — LangGraph StateGraph wiring.
 
 Orchestrates the multi-agent pipeline using LangGraph's StateGraph.
-Phase 1 has a single node (extraction); subsequent phases add validation,
-safety, and forecast nodes with conditional routing.
+
+Phase 2 topology:
+    START → route_by_input_type
+        → "image" → extract → validate → safety → END
+        → "voice" → voice_placeholder → END
 """
 
 from __future__ import annotations
@@ -14,6 +17,8 @@ from typing import Any
 from langgraph.graph import END, START, StateGraph
 
 from agents.extraction_agent import run_extraction
+from agents.validation_agent import run_validation
+from agents.safety_agent import run_safety_check
 from agents.state import PharmacyState
 from observability.tracing import create_trace, traced_span
 
@@ -50,7 +55,7 @@ async def extraction_node(state: dict[str, Any]) -> dict[str, Any]:
         ctx["metadata"]["processing_time_ms"] = result.processing_time_ms
         ctx["metadata"]["estimated_cost_usd"] = result.estimated_cost_usd
 
-    # Update trace with final output
+    # Update trace with extraction output
     try:
         trace.update(
             output={
@@ -62,6 +67,68 @@ async def extraction_node(state: dict[str, Any]) -> dict[str, Any]:
         )
     except Exception as e:
         logger.warning("Failed to update Langfuse trace: %s", e)
+
+    return result.model_dump()
+
+
+async def validation_node(state: dict[str, Any]) -> dict[str, Any]:
+    """
+    LangGraph node: run the validation agent on extracted items.
+
+    Checks for duplicate batches, expired medicines, price anomalies,
+    date inconsistencies, and missing critical fields.
+    """
+    pharmacy_state = PharmacyState(**state)
+    trace = create_trace(
+        trace_id=pharmacy_state.trace_id,
+        name="rxpilot-pipeline",
+    )
+
+    with traced_span(trace, "validation-agent", input_data={
+        "items_count": len(pharmacy_state.extracted_fields.items) if pharmacy_state.extracted_fields else 0,
+    }) as ctx:
+        result = await run_validation(pharmacy_state, trace=trace)
+        ctx["output"] = {
+            "validation_flags": result.validation_flags,
+            "flags_count": len(result.validation_flags),
+        }
+
+    logger.info(
+        "Validation node complete — %d flags",
+        len(result.validation_flags),
+    )
+
+    return result.model_dump()
+
+
+async def safety_node(state: dict[str, Any]) -> dict[str, Any]:
+    """
+    LangGraph node: run the safety RAG agent on extracted items.
+
+    Searches drug interaction corpus and flags dangerous combinations.
+    """
+    pharmacy_state = PharmacyState(**state)
+    trace = create_trace(
+        trace_id=pharmacy_state.trace_id,
+        name="rxpilot-pipeline",
+    )
+
+    with traced_span(trace, "safety-agent", input_data={
+        "items_count": len(pharmacy_state.extracted_fields.items) if pharmacy_state.extracted_fields else 0,
+    }) as ctx:
+        result = await run_safety_check(pharmacy_state, trace=trace)
+        ctx["output"] = {
+            "safety_flags": [
+                {"drug_pair": f.drug_pair, "severity": f.severity}
+                for f in result.safety_flags
+            ],
+            "flags_count": len(result.safety_flags),
+        }
+
+    logger.info(
+        "Safety node complete — %d flags",
+        len(result.safety_flags),
+    )
 
     return result.model_dump()
 
@@ -94,15 +161,17 @@ def build_graph() -> StateGraph:
     """
     Build the LangGraph StateGraph for the RxPilot pipeline.
 
-    Phase 1 topology:
+    Phase 2 topology:
         START → route_by_input_type
-            → "image"  → extract → END
+            → "image"  → extract → validate → safety → END
             → "voice"  → voice_placeholder → END
     """
     graph = StateGraph(dict)
 
     # Add nodes
     graph.add_node("extract", extraction_node)
+    graph.add_node("validate", validation_node)
+    graph.add_node("safety", safety_node)
     graph.add_node("voice_placeholder", placeholder_node)
 
     # Conditional entry based on input type
@@ -115,8 +184,12 @@ def build_graph() -> StateGraph:
         },
     )
 
-    # Terminal edges
-    graph.add_edge("extract", END)
+    # Phase 2 pipeline: extract → validate → safety → END
+    graph.add_edge("extract", "validate")
+    graph.add_edge("validate", "safety")
+    graph.add_edge("safety", END)
+
+    # Voice placeholder still goes directly to END
     graph.add_edge("voice_placeholder", END)
 
     return graph

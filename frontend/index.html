@@ -28,7 +28,7 @@
                     </svg>
                 </div>
                 <span class="logo-text">RxPilot</span>
-                <span class="logo-badge">Phase 1</span>
+                <span class="logo-badge">Phase 2</span>
             </div>
         </div>
         <div class="header-right">
@@ -111,6 +111,10 @@
                             <span class="step-icon">○</span>
                             <span>Validating output</span>
                         </div>
+                        <div class="step" id="step-safety">
+                            <span class="step-icon">○</span>
+                            <span>Checking drug safety</span>
+                        </div>
                         <div class="step" id="step-store">
                             <span class="step-icon">○</span>
                             <span>Storing results</span>
@@ -131,6 +135,30 @@
                         <div class="result-meta" id="result-meta"></div>
                     </div>
                     <div class="results-body" id="results-body"></div>
+                </div>
+
+                <!-- Validation Warnings Card -->
+                <div class="glass-card validation-card hidden" id="validation-card">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <span class="card-icon">⚠️</span>
+                            Validation Warnings
+                        </h2>
+                        <span class="validation-count" id="validation-count"></span>
+                    </div>
+                    <div class="validation-body" id="validation-body"></div>
+                </div>
+
+                <!-- Safety Alerts Card -->
+                <div class="glass-card safety-card hidden" id="safety-card">
+                    <div class="card-header">
+                        <h2 class="card-title">
+                            <span class="card-icon">🛡️</span>
+                            Drug Safety Alerts
+                        </h2>
+                        <span class="safety-count" id="safety-count"></span>
+                    </div>
+                    <div class="safety-body" id="safety-body"></div>
                 </div>
 
                 <!-- Error Card -->
@@ -156,6 +184,9 @@
                         <span class="tag">🐘 PostgreSQL</span>
                         <span class="tag">📊 Langfuse Tracing</span>
                         <span class="tag">🇮🇳 Multi-language</span>
+                        <span class="tag">✅ Validation Agent</span>
+                        <span class="tag">🛡️ Safety RAG</span>
+                        <span class="tag">🔍 pgvector Search</span>
                     </div>
                     <div class="disclaimer">
                         <strong>⚠️ Portfolio Project</strong> — This is a demonstration system,
@@ -186,7 +217,7 @@
 
     <!-- ── Footer ── -->
     <footer class="app-footer">
-        <p>RxPilot v0.1.0 · Portfolio Project · Not for clinical use</p>
+        <p>RxPilot v0.2.0 · Portfolio Project · Not for clinical use</p>
     </footer>
 
     <script src="app.js"></script>

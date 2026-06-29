@@ -1,0 +1,44 @@
+{
+  "description": "Golden set: Bill with expired medicine and date inconsistency — tests validation agent",
+  "bill_image": "sample_bill_03.jpg",
+  "items": [
+    {
+      "medicine_name": "Metformin 500mg",
+      "batch_number": "MET-2021-0045",
+      "expiry_date": "2022-01-31",
+      "manufacture_date": "2021-01-15",
+      "quantity": 100,
+      "unit": "tablets",
+      "supplier_name": "USV Ltd.",
+      "price": 28.00,
+      "currency": "INR"
+    },
+    {
+      "medicine_name": "Lisinopril 10mg",
+      "batch_number": "LIS-2024-1187",
+      "expiry_date": "2024-03-01",
+      "manufacture_date": "2024-06-01",
+      "quantity": 30,
+      "unit": "tablets",
+      "supplier_name": "Lupin Pharma",
+      "price": 55.00,
+      "currency": "INR"
+    },
+    {
+      "medicine_name": "Omeprazole 20mg",
+      "batch_number": "OMP-2024-7712",
+      "expiry_date": "2026-10-31",
+      "manufacture_date": "2024-10-01",
+      "quantity": 30,
+      "unit": "capsules",
+      "supplier_name": "Sun Pharma",
+      "price": 45.00,
+      "currency": "INR"
+    }
+  ],
+  "expected_safety_flags": [],
+  "expected_validation_flags": [
+    "expired:Metformin 500mg",
+    "date_inconsistency:Lisinopril 10mg"
+  ]
+}

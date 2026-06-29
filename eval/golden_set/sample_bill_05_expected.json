@@ -1,0 +1,41 @@
+{
+  "description": "Golden set: Clean bill with no interactions, no validation issues — negative test case",
+  "bill_image": "sample_bill_05.jpg",
+  "items": [
+    {
+      "medicine_name": "Vitamin D3 60000 IU",
+      "batch_number": "VD3-2024-8821",
+      "expiry_date": "2027-01-31",
+      "manufacture_date": "2024-01-15",
+      "quantity": 4,
+      "unit": "capsules",
+      "supplier_name": "Mankind Pharma",
+      "price": 48.00,
+      "currency": "INR"
+    },
+    {
+      "medicine_name": "Cetirizine 10mg",
+      "batch_number": "CTZ-2024-3305",
+      "expiry_date": "2026-10-31",
+      "manufacture_date": "2024-10-01",
+      "quantity": 10,
+      "unit": "tablets",
+      "supplier_name": "Cipla Ltd.",
+      "price": 18.00,
+      "currency": "INR"
+    },
+    {
+      "medicine_name": "Calcium Carbonate 500mg",
+      "batch_number": "CAL-2024-1192",
+      "expiry_date": "2026-12-31",
+      "manufacture_date": "2024-06-01",
+      "quantity": 60,
+      "unit": "tablets",
+      "supplier_name": "Abbott India",
+      "price": 75.00,
+      "currency": "INR"
+    }
+  ],
+  "expected_safety_flags": [],
+  "expected_validation_flags": []
+}

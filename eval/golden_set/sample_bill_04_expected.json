@@ -1,0 +1,50 @@
+{
+  "description": "Golden set: Ciprofloxacin + Warfarin + Theophylline — multiple interactions, critical safety case",
+  "bill_image": "sample_bill_04.jpg",
+  "items": [
+    {
+      "medicine_name": "Ciprofloxacin 500mg",
+      "batch_number": "CIP-2024-5531",
+      "expiry_date": "2026-09-30",
+      "manufacture_date": "2024-09-01",
+      "quantity": 14,
+      "unit": "tablets",
+      "supplier_name": "Bayer Pharma",
+      "price": 180.00,
+      "currency": "INR"
+    },
+    {
+      "medicine_name": "Warfarin 5mg",
+      "batch_number": "WAR-2024-4412",
+      "expiry_date": "2026-08-31",
+      "manufacture_date": "2024-08-01",
+      "quantity": 30,
+      "unit": "tablets",
+      "supplier_name": "Cipla Ltd.",
+      "price": 120.00,
+      "currency": "INR"
+    },
+    {
+      "medicine_name": "Theophylline 200mg",
+      "batch_number": "THE-2024-0089",
+      "expiry_date": "2026-05-31",
+      "manufacture_date": "2024-05-01",
+      "quantity": 60,
+      "unit": "tablets",
+      "supplier_name": "Unichem Pharma",
+      "price": 65.00,
+      "currency": "INR"
+    }
+  ],
+  "expected_safety_flags": [
+    {
+      "drug_pair": ["Ciprofloxacin", "Theophylline"],
+      "severity": "high"
+    },
+    {
+      "drug_pair": ["Ciprofloxacin", "Warfarin"],
+      "severity": "moderate"
+    }
+  ],
+  "expected_validation_flags": []
+}

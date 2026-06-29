@@ -151,3 +151,117 @@ class TestUploadEndpoint:
             assert data["status"] == "completed"
             assert data["items_count"] == 1
             assert data["items"][0]["medicine_name"] == "Paracetamol"
+            # Phase 2: response includes validation_warnings and safety_alerts
+            assert "validation_warnings" in data
+            assert "safety_alerts" in data
+            assert isinstance(data["validation_warnings"], list)
+            assert isinstance(data["safety_alerts"], list)
+
+    def test_upload_with_validation_warnings(self, client):
+        """Upload response includes validation warnings when flags are present."""
+        mock_result = {
+            "input_type": "image",
+            "raw_input_ref": "/uploads/test.jpg",
+            "extracted_fields": {
+                "items": [
+                    {
+                        "medicine_name": "Expired Drug",
+                        "batch_number": "EXP-001",
+                        "expiry_date": "2020-01-01",
+                        "manufacture_date": "2019-01-01",
+                        "quantity": 10,
+                        "unit": "tablets",
+                        "supplier_name": "TestPharma",
+                        "price": 50.0,
+                        "currency": "INR",
+                    }
+                ],
+                "raw_llm_output": "{}",
+                "parse_retries": 0,
+            },
+            "processing_time_ms": 1500.0,
+            "estimated_cost_usd": 0.004,
+            "error": None,
+            "validation_flags": ["expired:Expired Drug", "missing_fields:Expired Drug"],
+            "safety_flags": [],
+            "forecast": None,
+            "final_response": None,
+            "transcript": None,
+        }
+
+        with patch("api.routes.upload.compiled_graph") as mock_graph, \
+             patch("api.routes.upload.insert_bill", return_value="bill-456"), \
+             patch("api.routes.upload.flush_langfuse"):
+            mock_graph.ainvoke = AsyncMock(return_value=mock_result)
+
+            fake_image = b'\xff\xd8\xff\xe0' + b'\x00' * 100
+            res = client.post(
+                "/v1/upload",
+                files={"file": ("bill.jpg", fake_image, "image/jpeg")},
+            )
+
+        assert res.status_code == 200
+        data = res.json()
+        assert len(data["validation_warnings"]) == 2
+        flags = [w["flag"] for w in data["validation_warnings"]]
+        assert "expired:Expired Drug" in flags
+        assert "missing_fields:Expired Drug" in flags
+        # Messages should be human-readable
+        messages = [w["message"] for w in data["validation_warnings"]]
+        assert any("expired" in m.lower() for m in messages)
+
+    def test_upload_with_safety_alerts(self, client):
+        """Upload response includes safety alerts when drug interactions are found."""
+        mock_result = {
+            "input_type": "image",
+            "raw_input_ref": "/uploads/test.jpg",
+            "extracted_fields": {
+                "items": [
+                    {"medicine_name": "Warfarin", "batch_number": "WAR-001",
+                     "expiry_date": "2026-12-31", "manufacture_date": "2024-01-01",
+                     "quantity": 30, "unit": "tablets", "supplier_name": "Cipla",
+                     "price": 120.0, "currency": "INR"},
+                    {"medicine_name": "Aspirin", "batch_number": "ASP-001",
+                     "expiry_date": "2026-12-31", "manufacture_date": "2024-01-01",
+                     "quantity": 60, "unit": "tablets", "supplier_name": "Bayer",
+                     "price": 25.0, "currency": "INR"},
+                ],
+                "raw_llm_output": "{}",
+                "parse_retries": 0,
+            },
+            "processing_time_ms": 2000.0,
+            "estimated_cost_usd": 0.006,
+            "error": None,
+            "validation_flags": [],
+            "safety_flags": [
+                {
+                    "drug_pair": ("Warfarin", "Aspirin"),
+                    "severity": "high",
+                    "description": "Concurrent use significantly increases bleeding risk",
+                    "source": "OpenFDA label section 7.1",
+                }
+            ],
+            "forecast": None,
+            "final_response": None,
+            "transcript": None,
+        }
+
+        with patch("api.routes.upload.compiled_graph") as mock_graph, \
+             patch("api.routes.upload.insert_bill", return_value="bill-789"), \
+             patch("api.routes.upload.flush_langfuse"):
+            mock_graph.ainvoke = AsyncMock(return_value=mock_result)
+
+            fake_image = b'\xff\xd8\xff\xe0' + b'\x00' * 100
+            res = client.post(
+                "/v1/upload",
+                files={"file": ("bill.jpg", fake_image, "image/jpeg")},
+            )
+
+        assert res.status_code == 200
+        data = res.json()
+        assert len(data["safety_alerts"]) == 1
+        alert = data["safety_alerts"][0]
+        assert alert["severity"] == "high"
+        assert "Warfarin" in alert["drug_pair"]
+        assert "Aspirin" in alert["drug_pair"]
+        assert "bleeding" in alert["description"].lower()

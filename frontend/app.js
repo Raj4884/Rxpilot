@@ -1,8 +1,9 @@
 /**
- * RxPilot — Frontend Application
+ * RxPilot — Frontend Application (Phase 2)
  *
  * Vanilla JS handling file upload, API calls, DOM updates,
  * drag-and-drop, and real-time status checks.
+ * Phase 2 adds: validation warnings + safety alert rendering.
  */
 
 // ── API Base URL ──
@@ -30,19 +31,31 @@ const dropZoneContent = $('#drop-zone-content');
 const uploadCard = $('#upload-card');
 const processingCard = $('#processing-card');
 const resultsCard = $('#results-card');
+const validationCard = $('#validation-card');
+const safetyCard = $('#safety-card');
 const errorCard = $('#error-card');
 const welcomeCard = $('#welcome-card');
 
 const resultMeta = $('#result-meta');
 const resultsBody = $('#results-body');
+const validationBody = $('#validation-body');
+const validationCount = $('#validation-count');
+const safetyBody = $('#safety-body');
+const safetyCount = $('#safety-count');
 const errorMessage = $('#error-message');
 const historyBody = $('#history-body');
 
 const statusDot = $('.status-dot');
 const statusText = $('.status-text');
 
+// ── Pipeline Step refs ──
+const stepValidate = $('#step-validate');
+const stepSafety = $('#step-safety');
+const stepStore = $('#step-store');
+
 // ── State ──
 let selectedFile = null;
+let pipelineStepTimer = null;
 
 // ── Health Check ──
 async function checkHealth() {
@@ -132,10 +145,47 @@ fileInput.addEventListener('change', () => {
 });
 clearBtn.addEventListener('click', clearSelection);
 
+// ── Pipeline Step Animation ──
+function animatePipelineSteps() {
+    // Simulate step progression during API call
+    // Step 1: upload (already active on show)
+    let step = 0;
+    const steps = [
+        { el: stepValidate, label: 'Validating output', delay: 1800 },
+        { el: stepSafety,   label: 'Checking drug safety', delay: 3500 },
+        { el: stepStore,    label: 'Storing results', delay: 5500 },
+    ];
+
+    steps.forEach(({ el, delay }) => {
+        setTimeout(() => {
+            if (el) {
+                el.classList.add('active');
+                const icon = el.querySelector('.step-icon');
+                if (icon) icon.classList.add('spinner-sm');
+            }
+        }, delay);
+    });
+}
+
+function resetPipelineSteps() {
+    [stepValidate, stepSafety, stepStore].forEach(el => {
+        if (el) {
+            el.classList.remove('active', 'done');
+            const icon = el.querySelector('.step-icon');
+            if (icon) {
+                icon.classList.remove('spinner-sm');
+                icon.textContent = '○';
+            }
+        }
+    });
+}
+
 // ── Extraction ──
 extractBtn.addEventListener('click', runExtraction);
 retryBtn.addEventListener('click', () => {
     hideCard(errorCard);
+    hideCard(validationCard);
+    hideCard(safetyCard);
     showCard(welcomeCard);
     clearSelection();
 });
@@ -143,11 +193,15 @@ retryBtn.addEventListener('click', () => {
 async function runExtraction() {
     if (!selectedFile) return;
 
-    // Show processing state
+    // Reset and show processing state
     hideCard(welcomeCard);
     hideCard(resultsCard);
+    hideCard(validationCard);
+    hideCard(safetyCard);
     hideCard(errorCard);
     showCard(processingCard);
+    resetPipelineSteps();
+    animatePipelineSteps();
     extractBtn.disabled = true;
 
     const formData = new FormData();
@@ -190,10 +244,21 @@ function showResults(data) {
     hideCard(errorCard);
 
     // Meta tags
+    const warningCount = (data.validation_warnings || []).length;
+    const alertCount = (data.safety_alerts || []).length;
+    const warningBadge = warningCount > 0
+        ? `<span class="meta-tag" style="background:rgba(245,158,11,0.1);color:var(--accent-amber);border:1px solid rgba(245,158,11,0.2);">⚠️ ${warningCount} warning${warningCount > 1 ? 's' : ''}</span>`
+        : '';
+    const alertBadge = alertCount > 0
+        ? `<span class="meta-tag" style="background:rgba(244,63,94,0.1);color:var(--accent-rose);border:1px solid rgba(244,63,94,0.2);">🛡️ ${alertCount} alert${alertCount > 1 ? 's' : ''}</span>`
+        : '';
+
     resultMeta.innerHTML = `
         <span class="meta-tag count">📦 ${data.items_count} items</span>
         <span class="meta-tag time">⏱ ${data.processing_time_ms.toFixed(0)}ms</span>
         <span class="meta-tag cost">💰 $${data.estimated_cost_usd.toFixed(4)}</span>
+        ${warningBadge}
+        ${alertBadge}
     `;
 
     // Item cards
@@ -224,6 +289,89 @@ function showResults(data) {
     }
 
     showCard(resultsCard);
+
+    // Render validation warnings
+    renderValidationWarnings(data.validation_warnings || []);
+
+    // Render safety alerts
+    renderSafetyAlerts(data.safety_alerts || []);
+}
+
+// ── Validation Warnings ──
+function renderValidationWarnings(warnings) {
+    if (!warnings || warnings.length === 0) {
+        hideCard(validationCard);
+        return;
+    }
+
+    validationCount.textContent = `${warnings.length} warning${warnings.length > 1 ? 's' : ''}`;
+
+    const icons = {
+        'duplicate_batch': '🔁',
+        'expired': '📅',
+        'price_anomaly': '💲',
+        'date_inconsistency': '📆',
+        'missing_fields': '📋',
+    };
+
+    validationBody.innerHTML = warnings.map((w, idx) => {
+        const flagType = w.flag.split(':')[0];
+        const icon = icons[flagType] || '⚠️';
+        return `
+            <div class="validation-item" style="animation-delay: ${idx * 0.06}s">
+                <div class="validation-item-icon">${icon}</div>
+                <div class="validation-item-content">
+                    <div class="validation-item-flag">${escapeHtml(w.flag)}</div>
+                    <div class="validation-item-message">${escapeHtml(w.message)}</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    showCard(validationCard);
+}
+
+// ── Safety Alerts ──
+function renderSafetyAlerts(alerts) {
+    if (!alerts || alerts.length === 0) {
+        hideCard(safetyCard);
+        return;
+    }
+
+    safetyCount.textContent = `${alerts.length} alert${alerts.length > 1 ? 's' : ''}`;
+
+    // Determine highest severity for card border
+    const severityOrder = ['critical', 'high', 'moderate', 'low'];
+    const highestSeverity = severityOrder.find(s => alerts.some(a => a.severity === s)) || 'low';
+    safetyCard.className = `glass-card safety-card has-${highestSeverity}`;
+
+    safetyBody.innerHTML = alerts.map((alert, idx) => {
+        const [drugA, drugB] = alert.drug_pair || ['Drug A', 'Drug B'];
+        const severityEmoji = {
+            critical: '🚨',
+            high: '⛔',
+            moderate: '⚠️',
+            low: 'ℹ️',
+        }[alert.severity] || '⚠️';
+
+        return `
+            <div class="safety-alert-item severity-${alert.severity}" style="animation-delay: ${idx * 0.08}s">
+                <div class="safety-alert-header">
+                    <div class="safety-drug-pair">
+                        ${severityEmoji}
+                        <span>${escapeHtml(drugA)}</span>
+                        <span class="drug-pair-separator">+</span>
+                        <span>${escapeHtml(drugB)}</span>
+                    </div>
+                    <span class="severity-badge ${alert.severity}">${alert.severity.toUpperCase()}</span>
+                </div>
+                <div class="safety-alert-description">${escapeHtml(alert.description)}</div>
+                <div class="safety-alert-source">Source: ${escapeHtml(alert.source)}</div>
+            </div>
+        `;
+    }).join('');
+
+    showCard(safetyCard);
 }
 
 function renderField(label, value, className = '') {
@@ -243,6 +391,8 @@ function showError(message) {
     errorMessage.textContent = message;
     hideCard(welcomeCard);
     hideCard(resultsCard);
+    hideCard(validationCard);
+    hideCard(safetyCard);
     showCard(errorCard);
 }
 

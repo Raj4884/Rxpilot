@@ -44,12 +44,30 @@ CREATE INDEX IF NOT EXISTS idx_bills_status ON bills(status);
 CREATE INDEX IF NOT EXISTS idx_bill_items_bill_id ON bill_items(bill_id);
 CREATE INDEX IF NOT EXISTS idx_bill_items_medicine ON bill_items(medicine_name);
 
--- ── Phase 2 placeholder: drug interaction corpus vectors ──
--- CREATE TABLE IF NOT EXISTS drug_embeddings (
---     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
---     drug_name TEXT NOT NULL,
---     chunk_text TEXT NOT NULL,
---     source TEXT NOT NULL,
---     embedding vector(1536),
---     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
--- );
+-- ── Phase 2: Drug interaction corpus for RAG safety agent ──
+CREATE TABLE IF NOT EXISTS drug_interactions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    drug_a TEXT NOT NULL,
+    drug_b TEXT NOT NULL,
+    severity TEXT NOT NULL CHECK (severity IN ('low', 'moderate', 'high', 'critical')),
+    description TEXT NOT NULL,
+    mechanism TEXT,
+    source TEXT NOT NULL,
+    chunk_text TEXT NOT NULL,
+    embedding vector(384),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_drug_interactions_drug_a ON drug_interactions(LOWER(drug_a));
+CREATE INDEX IF NOT EXISTS idx_drug_interactions_drug_b ON drug_interactions(LOWER(drug_b));
+
+-- ── RAG build log ──
+CREATE TABLE IF NOT EXISTS rag_build_log (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    corpus_name TEXT NOT NULL,
+    entries_count INTEGER NOT NULL DEFAULT 0,
+    model_name TEXT NOT NULL,
+    embedding_dim INTEGER NOT NULL,
+    built_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+

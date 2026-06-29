@@ -1,0 +1,46 @@
+{
+  "description": "Golden set: Bill with Warfarin + Aspirin — known high-severity drug interaction",
+  "bill_image": "sample_bill_02.jpg",
+  "items": [
+    {
+      "medicine_name": "Warfarin 5mg",
+      "batch_number": "WAR-2024-3301",
+      "expiry_date": "2026-06-30",
+      "manufacture_date": "2024-06-01",
+      "quantity": 30,
+      "unit": "tablets",
+      "supplier_name": "Cipla Ltd.",
+      "price": 120.00,
+      "currency": "INR"
+    },
+    {
+      "medicine_name": "Aspirin 75mg",
+      "batch_number": "ASP-2024-0112",
+      "expiry_date": "2026-12-31",
+      "manufacture_date": "2024-01-15",
+      "quantity": 60,
+      "unit": "tablets",
+      "supplier_name": "Bayer Pharma",
+      "price": 25.00,
+      "currency": "INR"
+    },
+    {
+      "medicine_name": "Atorvastatin 20mg",
+      "batch_number": "ATV-2024-2218",
+      "expiry_date": "2027-03-31",
+      "manufacture_date": "2024-03-10",
+      "quantity": 30,
+      "unit": "tablets",
+      "supplier_name": "Sun Pharma",
+      "price": 95.00,
+      "currency": "INR"
+    }
+  ],
+  "expected_safety_flags": [
+    {
+      "drug_pair": ["Warfarin", "Aspirin"],
+      "severity": "high"
+    }
+  ],
+  "expected_validation_flags": []
+}
