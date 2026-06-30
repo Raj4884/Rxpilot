@@ -2,24 +2,12 @@
 Tests for API endpoints — health and upload routes.
 
 Uses FastAPI's TestClient with mocked dependencies for isolated testing.
+Client fixture is provided by tests/conftest.py.
 """
 
 from unittest.mock import patch, MagicMock, AsyncMock
 
 import pytest
-from fastapi.testclient import TestClient
-
-
-@pytest.fixture
-def client():
-    """Create a TestClient with mocked database."""
-    with patch("api.database.check_db_health", return_value=True), \
-         patch("api.database.get_connection"), \
-         patch("api.database.get_recent_bills", return_value=[]), \
-         patch("observability.tracing.get_langfuse", return_value=None):
-        from api.main import app
-        with TestClient(app) as c:
-            yield c
 
 
 class TestRootEndpoint:

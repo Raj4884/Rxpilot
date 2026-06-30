@@ -28,6 +28,13 @@ pydantic-settings>=2.5.0
 # RAG / Embeddings (Phase 2)
 sentence-transformers>=3.0.0
 
+# Voice / ASR (Phase 3)
+# Note: openai-whisper requires ffmpeg in PATH.
+# Install locally: pip install openai-whisper
+# In Docker: apt-get install ffmpeg
+# Code degrades to stub mode if whisper is not installed.
+openai-whisper>=20231117
+
 # Utilities
 python-dotenv>=1.0.0
 pillow>=10.0.0

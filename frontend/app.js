@@ -42,6 +42,9 @@ const validationBody = $('#validation-body');
 const validationCount = $('#validation-count');
 const safetyBody = $('#safety-body');
 const safetyCount = $('#safety-count');
+const voiceCard = $('#voice-card');
+const voiceBody = $('#voice-body');
+const voiceStatus = $('#voice-status');
 const errorMessage = $('#error-message');
 const historyBody = $('#history-body');
 
@@ -53,9 +56,17 @@ const stepValidate = $('#step-validate');
 const stepSafety = $('#step-safety');
 const stepStore = $('#step-store');
 
+// ── Voice refs ──
+const voiceBtn = $('#voice-btn');
+const voiceBtnText = $('#voice-btn-text');
+const voiceBtnIcon = $('#voice-btn-icon');
+
 // ── State ──
 let selectedFile = null;
 let pipelineStepTimer = null;
+let mediaRecorder = null;
+let audioChunks = [];
+let isRecording = false;
 
 // ── Health Check ──
 async function checkHealth() {
@@ -482,3 +493,163 @@ checkHealth();
 loadBills();
 // Poll health every 30s
 setInterval(checkHealth, 30000);
+
+// ── Voice Recording ──
+const RECORDING_MAX_MS = 10000; // auto-stop after 10s
+let recordingTimer = null;
+
+if (voiceBtn) {
+    voiceBtn.addEventListener('click', toggleRecording);
+}
+
+async function toggleRecording() {
+    if (isRecording) {
+        stopRecording();
+    } else {
+        await startRecording();
+    }
+}
+
+async function startRecording() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        audioChunks = [];
+        mediaRecorder = new MediaRecorder(stream);
+
+        mediaRecorder.ondataavailable = (e) => {
+            if (e.data.size > 0) audioChunks.push(e.data);
+        };
+
+        mediaRecorder.onstop = async () => {
+            stream.getTracks().forEach(t => t.stop());
+            const blob = new Blob(audioChunks, { type: 'audio/webm' });
+            await submitVoiceQuery(blob);
+        };
+
+        mediaRecorder.start();
+        isRecording = true;
+        setVoiceRecordingUI(true);
+
+        // Auto-stop after 10s
+        recordingTimer = setTimeout(stopRecording, RECORDING_MAX_MS);
+
+    } catch (err) {
+        if (err.name === 'NotAllowedError') {
+            alert('Microphone access denied. Please allow microphone access to use voice queries.');
+        } else {
+            alert(`Could not start recording: ${err.message}`);
+        }
+    }
+}
+
+function stopRecording() {
+    if (!isRecording || !mediaRecorder) return;
+    clearTimeout(recordingTimer);
+    mediaRecorder.stop();
+    isRecording = false;
+    setVoiceRecordingUI(false);
+    setVoiceRecordingUI(false, true); // Show processing state
+}
+
+function setVoiceRecordingUI(recording, processing = false) {
+    if (!voiceBtn) return;
+
+    if (recording) {
+        voiceBtn.classList.add('recording');
+        voiceBtnText.textContent = 'Stop Recording';
+        voiceBtnIcon.innerHTML = `
+            <div class="waveform">
+                ${Array(5).fill('<div class="waveform-bar"></div>').join('')}
+            </div>
+        `;
+    } else if (processing) {
+        voiceBtn.disabled = true;
+        voiceBtnText.textContent = 'Processing...';
+        voiceBtnIcon.innerHTML = '<span class="spinner-sm"></span>';
+    } else {
+        voiceBtn.classList.remove('recording');
+        voiceBtn.disabled = false;
+        voiceBtnText.textContent = 'Ask with Voice';
+        voiceBtnIcon.innerHTML = `
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                <line x1="12" y1="19" x2="12" y2="22"/>
+                <line x1="8" y1="22" x2="16" y2="22"/>
+            </svg>
+        `;
+    }
+}
+
+async function submitVoiceQuery(audioBlob) {
+    const formData = new FormData();
+    formData.append('file', audioBlob, 'query.webm');
+
+    hideCard(voiceCard);
+
+    try {
+        const res = await fetch(`${API_BASE}/v1/voice`, {
+            method: 'POST',
+            body: formData,
+        });
+
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({ detail: res.statusText }));
+            throw new Error(err.detail || `Voice query failed: ${res.status}`);
+        }
+
+        const data = await res.json();
+        renderVoiceResult(data);
+
+    } catch (err) {
+        voiceStatus.textContent = 'Error';
+        voiceBody.innerHTML = `
+            <div class="empty-text" style="color: var(--accent-rose);">
+                Voice query failed: ${escapeHtml(err.message)}
+            </div>
+        `;
+        showCard(voiceCard);
+    } finally {
+        setVoiceRecordingUI(false);
+    }
+}
+
+function renderVoiceResult(data) {
+    const intentLabels = {
+        stock_query: '📦 Stock Query',
+        expiry_query: '📅 Expiry Query',
+        interaction_query: '🛡️ Interaction Query',
+        general_query: '💬 General Query',
+    };
+
+    const sourceLabel = data.answer_source || 'unknown';
+    const confidence = (data.answer_confidence * 100).toFixed(0);
+    const intentLabel = intentLabels[data.intent] || data.intent;
+
+    voiceStatus.textContent = `${data.processing_time_ms.toFixed(0)}ms`;
+
+    voiceBody.innerHTML = `
+        <div class="voice-transcript-block">
+            <div class="voice-transcript-label">Transcript</div>
+            <div class="voice-transcript-text">
+                "${escapeHtml(data.transcript || '(no transcript)')}"
+            </div>
+        </div>
+
+        <div class="voice-intent-row">
+            <span class="voice-intent-badge">${intentLabel}</span>
+            ${data.drug_name ? `<span class="voice-drug-tag">💊 ${escapeHtml(data.drug_name)}</span>` : ''}
+        </div>
+
+        <div class="voice-answer-block">
+            <div class="voice-answer-label">🤖 Answer</div>
+            <div class="voice-answer-text">${escapeHtml(data.answer)}</div>
+            <div class="voice-answer-meta">
+                <span class="voice-source-tag">source: ${escapeHtml(sourceLabel)}</span>
+                <span class="voice-confidence">${confidence}% confidence</span>
+            </div>
+        </div>
+    `;
+
+    showCard(voiceCard);
+}

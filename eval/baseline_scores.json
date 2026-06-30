@@ -1,0 +1,12 @@
+{
+  "extraction": {
+    "macro_precision": 1.0,
+    "macro_recall": 1.0,
+    "macro_f1": 1.0
+  },
+  "safety": {
+    "overall_recall": 1.0,
+    "overall_precision": 1.0,
+    "overall_f1": 1.0
+  }
+}

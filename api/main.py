@@ -100,9 +100,11 @@ app.add_middleware(
 # ── Register route modules ──
 from api.routes.upload import router as upload_router  # noqa: E402
 from api.routes.health import router as health_router  # noqa: E402
+from api.routes.voice import router as voice_router    # noqa: E402
 
 app.include_router(upload_router, prefix="/v1")
 app.include_router(health_router)
+app.include_router(voice_router, prefix="/v1")
 
 # ── Serve uploaded files (for frontend image display) ──
 upload_dir = Path(os.getenv("UPLOAD_DIR", "uploads"))
@@ -115,12 +117,14 @@ async def root():
     """Root endpoint — API info."""
     return {
         "name": "RxPilot",
-        "version": "0.1.0",
+        "version": "0.3.0",
+        "phase": "Phase 3 — Voice Interface + CI Eval Gate",
         "description": "Multi-agent AI system for pharmacy operations",
         "disclaimer": "Portfolio project — not for real clinical use",
         "docs": "/docs",
         "endpoints": {
             "upload": "POST /v1/upload",
+            "voice": "POST /v1/voice",
             "bills": "GET /v1/bills",
             "bill_detail": "GET /v1/bills/{bill_id}",
             "health": "GET /health",

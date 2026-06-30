@@ -113,6 +113,37 @@ class SafetyFlag(BaseModel):
     )
 
 
+class VoiceQuery(BaseModel):
+    """Parsed intent from a voice input transcript."""
+
+    intent: Literal[
+        "stock_query",
+        "expiry_query",
+        "interaction_query",
+        "general_query",
+    ] = Field(..., description="Detected intent of the voice query")
+    drug_name: str | None = Field(
+        default=None, description="Primary drug name extracted from the query"
+    )
+    question: str = Field(
+        ..., description="The verbatim or cleaned question to answer"
+    )
+
+
+class VoiceAnswer(BaseModel):
+    """Answer produced by the voice answer agent."""
+
+    answer_text: str = Field(
+        ..., description="Human-readable answer to the voice query"
+    )
+    source: Literal["database", "corpus", "llm", "stub"] = Field(
+        default="llm", description="Where the answer came from"
+    )
+    confidence: float = Field(
+        default=1.0, ge=0.0, le=1.0, description="Confidence score"
+    )
+
+
 class ForecastResult(BaseModel):
     """Output of the forecast agent — reorder prediction for a medicine."""
 
@@ -164,6 +195,14 @@ class PharmacyState(BaseModel):
     safety_flags: list[SafetyFlag] = Field(
         default_factory=list,
         description="Drug-interaction flags from the safety agent",
+    )
+    voice_query: VoiceQuery | None = Field(
+        default=None,
+        description="Parsed voice query intent (voice pipeline only)",
+    )
+    voice_answer: VoiceAnswer | None = Field(
+        default=None,
+        description="Answer produced by the voice answer agent",
     )
     forecast: ForecastResult | None = Field(
         default=None,
