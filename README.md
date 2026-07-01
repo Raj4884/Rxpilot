@@ -214,8 +214,8 @@ rxpilot/
 | Phase | Status | Description |
 |-------|--------|-------------|
 | **Phase 1** | ✅ Built | Foundations + extraction agent |
-| **Phase 2** | 🔲 Planned | Validation + safety RAG agent + eval harness |
-| **Phase 3** | 🔲 Planned | Voice interface (ASR/TTS) + CI eval gate |
+| **Phase 2** | ✅ Built | Validation + safety RAG agent + eval harness |
+| **Phase 3** | ✅ Built | Voice interface (ASR/TTS) + CI eval gate |
 | **Phase 4** | 🔲 Planned | Forecast agent + VLM cost comparison + deploy |
 
 ---
